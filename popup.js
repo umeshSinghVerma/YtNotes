@@ -13,6 +13,7 @@ chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
   }
 });
 
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   ComingArray[pageUrl] = JSON.parse(JSON.stringify(message.ImagesArray));
   VideoTitle = message.videoTitle;
@@ -32,7 +33,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     a.href = src[1];
     a.appendChild(image);
     Container.appendChild(a);
-    if(src[2] != ""){
+    if (src[2] != "") {
       const note = document.createElement('p');
       note.style.fontSize = '15px';
       note.innerText = src[2];
@@ -53,12 +54,13 @@ function convertHTMLtoPDF() {
   // pagebreak: { before: 'a', after: ['p'], avoid: 'a' },
 
   var opt = {
-    margin :       [0.38, 0.5],
-    filename:     VideoTitle,
-    image:        { type: 'jpeg', quality: 0.98 },
-    html2canvas:  { scale: 2, allowTaint: true, letterRendering: true},
-    pagebreak: {avoid: ['a','p'] },
-    jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+    margin: [0.38, 0.5],
+    filename: VideoTitle,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2, allowTaint: true, letterRendering: true },
+    pagebreak: { avoid: ['a', 'p'] },
+    jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
   };
   html2pdf().set(opt).from(Container).save();
 }
+

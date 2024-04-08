@@ -56,39 +56,29 @@ const PageId = extractVideoId(PageUrl);
 let currentLocation = 'https://www.youtube.com/watch?v=' + PageId;
 
 async function fetchPreviousData(currentLocation) {
-  //asyncFunctionRunning = true;
   if (extractVideoId(currentLocation)) {
-    console.log('i want this', USER_ID, currentLocation);
     let previousData = await database.from('ImgArr')
       .select('*')
       .eq('userId', USER_ID)
       .eq('vidHash', extractVideoId(currentLocation))
 
-    console.log("this is the previous data", previousData);
     if (previousData && previousData.data && previousData.data.length > 0) {
-      console.log(previousData.data[0]);
       const PreviousImages = JSON.parse(previousData.data[0].Images);
-      console.log("these are the previous Images", PreviousImages);
       return PreviousImages;
-    }else{
+    } else {
       return [];
     }
   }
-  //asyncFunctionRunning = false;
 }
 async function MergeRequest(VidHash) {
-  //asyncFunctionRunning = true;
   const previousData = await database.from('ImgArr')
     .select('*')
     .eq('userId', USER_ID)
     .eq('vidHash', VidHash);
   if (previousData && previousData.data && previousData.data.length > 0) {
     const PreviousImages = JSON.parse(previousData.data[0].Images);
-    console.log("these are the merge Images", PreviousImages);
     return PreviousImages;
   }
-
-  //asyncFunctionRunning = false;
 }
 
 ContentScript();
@@ -100,6 +90,11 @@ async function ContentScript() {
   const ImagesArray = {};
   ImagesArray[currentLocation] = [];
   var previousData = await fetchPreviousData(currentLocation);
+  if (previousData) {
+    ImagesArray[currentLocation] = [...ImagesArray[currentLocation], ...previousData];
+  }
+  let InitialFirstTimeData = JSON.parse(JSON.stringify(ImagesArray[currentLocation]));
+
 
   const MergeDiv = document.createElement('div');
   MergeDiv.style.borderRadius = '20px';
@@ -167,8 +162,11 @@ async function ContentScript() {
   copyVideoIdButton.style.outline = 'none';
   copyVideoIdButton.style.transition = 'background-color 0.3s ease';
   copyVideoIdButton.textContent = 'Copy Video ID';
-  copyVideoIdButton.onclick = () => {
+  copyVideoIdButton.onclick = async () => {
     const videoId = extractVideoId(currentLocation);
+    copyVideoIdButton.textContent = 'Loading...';
+    await MergeImageInDatabase();
+    copyVideoIdButton.textContent = 'Copy Video ID';
     navigator.clipboard.writeText(videoId);
     alert(`Copied "${videoId}"
     You can paste it anywhere you want!`);
@@ -269,7 +267,37 @@ async function ContentScript() {
     }
   })
 
-  div2.append(UserInput, UserSubmit);
+  const uploadButton = document.createElement('button');
+  uploadButton.style.backgroundColor = '#FF0000';
+  uploadButton.style.margin = '10px';
+  uploadButton.style.border = 'none';
+  uploadButton.style.borderRadius = '3px';
+  uploadButton.style.color = '#FFFFFF';
+  uploadButton.style.padding = '8px 16px';
+  uploadButton.style.fontSize = '14px';
+  uploadButton.style.fontFamily = 'Arial, sans-serif';
+  uploadButton.style.cursor = 'pointer';
+  uploadButton.style.outline = 'none';
+  uploadButton.style.transition = 'background-color 0.3s ease';
+  uploadButton.innerHTML = 'Save';
+  uploadButton.addEventListener('mousedown', function () {
+    uploadButton.style.backgroundColor = '#CC0000';
+  });
+  uploadButton.addEventListener('mouseup', () => {
+    uploadButton.style.backgroundColor = '#FF0000';
+  })
+  uploadButton.onclick = async () => {
+    uploadButton.innerHTML = 'Saving....';
+    await MergeImageInDatabase();
+    uploadButton.innerHTML = 'Save';
+    InitialFirstTimeData = ImagesArray[currentLocation];
+  }
+
+  div2.append(UserInput, UserSubmit, uploadButton);
+
+  window.addEventListener('beforeunload', async () => {
+    await MergeImageInDatabase();
+  })
 
 
 
@@ -281,7 +309,7 @@ async function ContentScript() {
     const MergeRequestData = await MergeRequest(MergeId);
     if (MergeRequestData) {
       ImagesArray[currentLocation] = [...MergeRequestData, ...ImagesArray[currentLocation]];
-      await MergeImageInDatabase(previousData);
+      // await MergeImageInDatabase();
     }
     MergeInput.value = '';
     MergeSubmit.innerHTML = "Merge";
@@ -317,9 +345,13 @@ async function ContentScript() {
   // Later, you can stop observing
   // observer.disconnect();
 
-  if (previousData) {
-    ImagesArray[currentLocation] = [...ImagesArray[currentLocation], ...previousData];
-  }
+
+
+  window.addEventListener('beforeunload', function (e) {
+    if (JSON.stringify(ImagesArray[currentLocation]) != JSON.stringify(InitialFirstTimeData)) {
+      e.preventDefault();
+    }
+  });
 
 
 
@@ -357,7 +389,7 @@ async function ContentScript() {
           const timestamp = document.getElementsByTagName('video')[0].currentTime;
           const Note = await TOAST('Screenshot Captured', 3);
           ImagesArray[currentLocation].push([newFileSrc, currentLocation + "&t=" + timestamp + "s", Note]);
-          await MergeImageInDatabase(previousData);
+          // await MergeImageInDatabase();
           console.log('hii there', ImagesArray[currentLocation]);
           //asyncFunctionRunning = false;
         });
@@ -414,13 +446,14 @@ async function ContentScript() {
     LeftControls.prepend(button);
   }
 
-  setInterval(async() => {
+  setInterval(async () => {
 
     let PageUrl = window.location.href;
     const PageId = extractVideoId(PageUrl);
     const newLocation = 'https://www.youtube.com/watch?v=' + PageId;
 
     if (newLocation != currentLocation) {
+      await MergeImageInDatabase();
       currentLocation = newLocation;
       console.log(currentLocation)
       previousData = await fetchPreviousData(currentLocation);
@@ -542,7 +575,7 @@ async function ContentScript() {
             const timestamp = document.getElementsByTagName('video')[0].currentTime;
             // const Note = await TOAST('Screenshot Captured', 3);
             ImagesArray[currentLocation].push([newFileSrc, currentLocation + "&t=" + timestamp + "s", ""]);
-            await MergeImageInDatabase(previousData);
+            // await MergeImageInDatabase();
             console.log('hii there', ImagesArray[currentLocation]);
             if (document.body.contains(section)) {
               document.body.removeChild(section);
@@ -697,12 +730,12 @@ async function ContentScript() {
     });
   }
 
-  async function MergeImageInDatabase(previousData) {
+  async function MergeImageInDatabase() {
     //asyncFunctionRunning = true;
     if (extractVideoId(currentLocation)) {
       const previousData = await fetchPreviousData(currentLocation);
-      console.log('this is the previous data in merge',previousData);
-      if (previousData && previousData.length>0) {
+      console.log('this is the previous data in merge', previousData);
+      if (previousData && previousData.length > 0) {
         const res = await database.from('ImgArr').update({
           Images: JSON.stringify(ImagesArray[currentLocation]),
         }).match({ vidHash: extractVideoId(currentLocation), userId: USER_ID });
